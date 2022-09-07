@@ -1,2 +1,1 @@
-cargo nextest run
-cargo test --doc
+cargo nextest run & cargo test --doc
