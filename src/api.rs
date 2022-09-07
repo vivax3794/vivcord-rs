@@ -13,6 +13,9 @@ pub struct ApiClient {
 
 impl ApiClient {
     /// Create new api client instance with the specified oauth token
+    /// Takes a discord api oauth token.
+    /// 
+    /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create out instace.
     pub fn new(token: String) -> Self {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
@@ -31,6 +34,18 @@ impl ApiClient {
     }
 
     /// Get the connection url for the discord gateway
+    /// At the time of writting this url is most likely `wss://gateway.discord.gg/`, but this might change.
+    /// 
+    /// # Example
+    /// ```no_run
+    /// # use vivcord::ApiClient;
+    /// # tokio_test::block_on(async {
+    /// let client = ApiClient::new(String::from(""));
+    /// let url = client.get_gateway_url().await?;
+    ///     # Ok::<(), reqwest::Error>(())
+    /// # });
+    /// ```
+
     pub async fn get_gateway_url(&self) -> Result<String, reqwest::Error> {
         #[derive(Deserialize)]
         struct GatewayResponse {
