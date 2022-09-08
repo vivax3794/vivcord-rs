@@ -7,6 +7,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(tag = "event_name", content = "data")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum GatewayEventData {
     /// Hello Packet, contains a hearthbeat describing the interval for the keep-alive loop!
     #[serde(rename = "10")]
