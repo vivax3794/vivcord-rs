@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 
-/// Stors all possible gateway event types.
+/// Stores all possible gateway event types.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "event_name", content = "data")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -30,7 +30,7 @@ struct RawEventData {
     data: Option<serde_json::Value>,
 }
 
-// Stores general event data
+/// Stores general event data
 #[derive(Deserialize)]
 #[serde(from = "RawEventData")]
 pub struct GatewayEvent {
