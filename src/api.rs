@@ -16,11 +16,11 @@ impl ApiClient {
     /// Takes a discord api oauth token.
     ///
     /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create out instace.
-    pub fn new(token: String) -> Self {
+    pub fn new(token: &str) -> Self {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
             "Authorization",
-            reqwest::header::HeaderValue::from_str(&token).expect("Invalid Token"),
+            reqwest::header::HeaderValue::from_str(token).expect("Invalid Token"),
         );
 
         let client = reqwest::Client::builder()
