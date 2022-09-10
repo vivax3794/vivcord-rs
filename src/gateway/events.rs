@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 
 /// Stores all possible gateway event types.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "event_name", content = "data")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]
@@ -16,6 +16,8 @@ pub enum GatewayEventData {
     },
     #[serde(rename = "11")]
     HearthBeatAck,
+    #[serde(rename = "1")]
+    HearthbeatRequest
 }
 
 /// Raw data from discord api, used to convert into GatewayEvent
@@ -32,7 +34,7 @@ struct RawEventData {
 }
 
 /// Stores general event data
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(from = "RawEventData")]
 pub struct GatewayEvent {
     pub data: GatewayEventData,
