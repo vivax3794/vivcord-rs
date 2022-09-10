@@ -5,34 +5,16 @@ use std::{sync::Arc, time::Duration};
 
 pub use events::GatewayEventData;
 
-use futures::{SinkExt, StreamExt};
+use futures::{Future, SinkExt, StreamExt};
 use std::sync::Mutex;
+use tokio::select;
 use tokio::sync::broadcast;
-use tokio::{try_join, select};
 use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Error, Message};
 
-fn create_tls() -> tokio_tungstenite::Connector {
-    let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-
-    let tls = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-
-    tokio_tungstenite::Connector::Rustls(Arc::new(tls))
-}
-
-async fn wait_for<St, F, Rt>(stream: &mut broadcast::Receiver<St>, predicate: F) -> Rt
+async fn wait_for<St, F, Rt>(stream: &mut broadcast::Receiver<St>, mut predicate: F) -> Rt
 where
     St: Clone,
-    F: Fn(St) -> Option<Rt>,
+    F: FnMut(St) -> Option<Rt>,
 {
     loop {
         if let Ok(message) = stream.recv().await {
@@ -68,10 +50,46 @@ macro_rules! wait_for_S {
     };
 }
 
+fn create_tls() -> tokio_tungstenite::Connector {
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+
+    let tls = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    tokio_tungstenite::Connector::Rustls(Arc::new(tls))
+}
+
+async fn create_connection(
+    url: &str,
+) -> (
+    impl SinkExt<Message, Error = Error>,
+    impl StreamExt<Item = Result<Message, Error>>,
+) {
+    let url = format!("{url}?v=10&encoding=json");
+    let url = reqwest::Url::parse(&url).unwrap();
+
+    let config = WebSocketConfig::default();
+    let tls = create_tls();
+
+    let (connection, _) =
+        tokio_tungstenite::connect_async_tls_with_config(url, Some(config), Some(tls))
+            .await
+            .unwrap();
+    connection.split()
+}
+
 /// Websocket for getting events from discord gateway.
 pub struct Gateway {
     event_reader: Option<broadcast::Receiver<GatewayEventData>>,
-    last_sequence_number: Arc<Mutex<Option<u32>>>,
 }
 
 impl Default for Gateway {
@@ -82,70 +100,59 @@ impl Default for Gateway {
 
 impl Gateway {
     pub fn new() -> Self {
-        Self {
-            event_reader: None,
-            last_sequence_number: Arc::new(Mutex::new(None)),
-        }
+        Self { event_reader: None }
     }
 
     /// Create new gateway connection using a oauth token
     /// you can get the gateway url with [ApiClient::get_gateway_url](crate::ApiClient::get_gateway_url)
     /// This will spawn the event loop in a seperate task (and maybe thread)
     #[allow(unreachable_code)]
-    pub async fn connect(&mut self, url: &str, token: &str) -> ! {
-        let url = format!("{url}?v=10&encoding=json");
-        let url = reqwest::Url::parse(&url).unwrap();
+    pub async fn connect(&mut self, url: &str, token: &str) {
+        let (mut stream_writer, stream_reader) = create_connection(url).await;
 
-        let config = WebSocketConfig::default();
-        let tls = create_tls();
-
-        let (connection, _) =
-            tokio_tungstenite::connect_async_tls_with_config(url, Some(config), Some(tls))
-                .await
-                .unwrap();
-
-        let (mut stream_writer, stream_reader) = connection.split();
         // IMPORTANT: Should this be larger/smaller?
         // In theory all events should be processed almost at once
         // as long as the user doesnt block the thread (HEY MATISSE, SOUNDS FAMILIAR?)
         let (event_writer, event_reader) = broadcast::channel::<events::GatewayEventData>(5);
         self.event_reader = Some(event_reader);
 
-        let event_loop = tokio::spawn(Gateway::event_loop(
+        let sequence_number = Arc::new(Mutex::new(None));
+
+        tokio::spawn(Gateway::event_loop(
             stream_reader,
             event_writer,
-            self.last_sequence_number.clone(), // lets event reader thread update sequence number
+            sequence_number.clone(), // lets event reader thread update sequence number
         ));
         let hearth_interval =
             wait_for!(self, GatewayEventData::Hello { heartbeat_interval } => heartbeat_interval)
                 .await;
-        
+
         // Send identify packet
         // Api allows us (and actually tells us) to send hearthbeats while doing this
         // but that would make the heartbeat logic very complicated since we cant copy the stream writer
-        let data = Message::Text(serde_json::to_string(&serde_json::json!({
-            "op": 2,
-            "d": {
-                "token": token,
-                "intents": 0, // TODO: support gateway intents
-                "properties": {
-                    "os": std::env::consts::OS,
-                    "browser": "vivcord-rs",
-                    "device": "vivcord-rs"
+        let data = Message::Text(
+            serde_json::to_string(&serde_json::json!({
+                "op": 2,
+                "d": {
+                    "token": token,
+                    "intents": 0, // TODO: support gateway intents
+                    "properties": {
+                        "os": std::env::consts::OS,
+                        "browser": "vivcord-rs",
+                        "device": "vivcord-rs"
+                    }
                 }
-            }
-        })).unwrap());
+            }))
+            .unwrap(),
+        );
         stream_writer.send(data).await.unwrap();
 
-        let hearthbeat_loop = tokio::spawn(Gateway::hearthbeat(
+        tokio::spawn(Gateway::hearthbeat(
             stream_writer,
             self.event_reader.as_ref().unwrap().resubscribe(),
             hearth_interval,
-            self.last_sequence_number.clone(),
+            sequence_number,
         ));
-
-        try_join!(event_loop, hearthbeat_loop).unwrap();
-        unreachable!();
     }
 
     /// Read events from socket forever
@@ -224,7 +231,7 @@ impl Gateway {
 
     pub async fn wait_for<T, F>(&self, predicate: F) -> T
     where
-        F: Fn(GatewayEventData) -> Option<T>,
+        F: FnMut(GatewayEventData) -> Option<T>,
     {
         let mut reader = self
             .event_reader
@@ -232,5 +239,21 @@ impl Gateway {
             .expect("Event loop not started")
             .resubscribe();
         wait_for(&mut reader, predicate).await
+    }
+
+    pub async fn on<F, A>(&self, mut callback: F) -> !
+    where
+        F: FnMut(GatewayEventData) -> A,
+        A: Future<Output = ()> + Send + 'static,
+    {
+        let mut reader = self
+            .event_reader
+            .as_ref()
+            .expect("Event loop not started")
+            .resubscribe();
+        loop {
+            let event = reader.recv().await.unwrap();
+            tokio::spawn(callback(event));
+        }
     }
 }

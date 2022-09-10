@@ -5,5 +5,11 @@ async fn main() {
     let api = vivcord::ApiClient::new(TOKEN);
     let url = api.get_gateway_url().await.unwrap();
 
-    vivcord::Gateway::new().connect(&url, TOKEN).await;
+
+    let mut gateway = vivcord::Gateway::new();
+    gateway.connect(&url, TOKEN).await;
+    gateway.on(|event| async move {
+        println!("CALLBACK TEST: {event:?}")
+    }).await;
+    
 }
