@@ -9,15 +9,17 @@ use serde::Deserialize;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]
 pub enum GatewayEventData {
-    /// Hello Packet, contains a hearthbeat describing the interval for the keep-alive loop!
     #[serde(rename = "10")]
     Hello {
         heartbeat_interval: u32,
     },
+
     #[serde(rename = "11")]
     HearthBeatAck,
+
     #[serde(rename = "1")]
     HearthbeatRequest,
+
     Ready {},
 }
 
