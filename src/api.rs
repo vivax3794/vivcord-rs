@@ -40,7 +40,7 @@ impl ApiClient {
     /// ```no_run
     /// # use vivcord::ApiClient;
     /// # tokio_test::block_on(async {
-    /// let client = ApiClient::new(String::from(""));
+    /// let client = ApiClient::new("");
     /// let url = client.get_gateway_url().await?;
     ///     # Ok::<(), reqwest::Error>(())
     /// # });
