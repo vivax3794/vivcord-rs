@@ -17,7 +17,8 @@ pub enum GatewayEventData {
     #[serde(rename = "11")]
     HearthBeatAck,
     #[serde(rename = "1")]
-    HearthbeatRequest
+    HearthbeatRequest,
+    Ready {},
 }
 
 /// Raw data from discord api, used to convert into GatewayEvent
