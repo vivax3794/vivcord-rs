@@ -7,12 +7,12 @@ bitflags! {
     /// You can use bitwise operations to combine flags. <br>
     /// These should be passed to [`Gateway::connect`][crate::Gateway::connect]
     /// 
-    /// Detailed describtion of what each flag does can be seen in the [discord docs](https://discord.com/developers/docs/topics/gateway#list-of-intents)
+    /// Detailed description of what each flag does can be seen in the [discord docs](https://discord.com/developers/docs/topics/gateway#list-of-intents)
     /// 
     /// # Example
     /// ```
     /// # use vivcord::Intents;
-    /// // You want to get evetns about messages in guilds and their content.
+    /// // You want to get events about messages in guilds and their content.
     /// let intents = Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT;
     /// ```
     pub struct Intents: u32 {

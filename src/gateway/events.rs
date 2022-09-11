@@ -11,7 +11,7 @@ use serde::Deserialize;
 pub enum GatewayEventData {
     /// Sent when connecting to websocket
     /// 
-    /// This is usually sent before even callbacks are registerd
+    /// This is usually sent before even callbacks are registered
     #[serde(rename = "10")]
     Hello {
         heartbeat_interval: u32,
@@ -27,16 +27,16 @@ pub enum GatewayEventData {
     /// 
     /// This is handled by the internal event handler
     #[serde(rename = "1")]
-    HearthbeatRequest,
+    HeartbeatRequest,
 
     // TODO: More fields
-    /// Sent when the client has sucessfully connected.
+    /// Sent when the client has successfully connected.
     Ready {},
 
     /// Send when somebody sends a message
     /// 
     /// # Important
-    /// This is also sent when the bot creates a message, make sure to avoid infinte loops!
+    /// This is also sent when the bot creates a message, make sure to avoid infinite loops!
     MessageCreate(crate::datatypes::Message),
 }
 

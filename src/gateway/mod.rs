@@ -1,4 +1,4 @@
-//! Connect and recive events from discord
+//! Connect and receive events from discord
 
 // TODO: Reconnect on disconnect
 
@@ -30,7 +30,7 @@ where
 
 /// Wait for specific event from gateway
 /// 
-/// For more controll see [`Gateway::wait_for`][crate::Gateway::wait_for]
+/// For more control see [`Gateway::wait_for`][crate::Gateway::wait_for]
 /// 
 /// syntax is `wait_for!(gateway, pattern => return)`, you can use the pattern to capture values from the event to return.
 /// 
@@ -71,7 +71,7 @@ macro_rules! wait_for_S {
     };
 }
 
-/// Create the tls confic for the gateway connection
+/// Create the tls config for the gateway connection
 fn create_tls() -> tokio_tungstenite::Connector {
     let mut root_store = rustls::RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
@@ -129,19 +129,19 @@ impl Gateway {
 
     /// Create new gateway connection using a oauth token. <br>
     /// you can get the gateway url with [`ApiClient::get_gateway_url`](crate::ApiClient::get_gateway_url) <br>
-    /// This will spawn the event loop in a seperate task (and maybe thread)
+    /// This will spawn the event loop in a separate task (and maybe thread)
     #[allow(unreachable_code)]
     pub async fn connect(&mut self, url: &str, token: &str, intents: &crate::Intents) {
         let (mut stream_writer, stream_reader) = create_connection(url).await;
 
         // IMPORTANT: Should this be larger/smaller?
         // In theory all events should be processed almost at once
-        // as long as the user doesnt block the thread (HEY MATISSE, SOUNDS FAMILIAR?)
+        // as long as the user doesn't block the thread (HEY MATISSE, SOUNDS FAMILIAR?)
         let (event_writer, event_reader) = broadcast::channel::<events::GatewayEventData>(5);
         self.event_reader = Some(event_reader);
 
-        // create sequence number with Mutex so the event reader and hearthbeat can both use it
-        // we dont store this on the struct because it should only be usefull to those 2 tasks
+        // create sequence number with Mutex so the event reader and heartbeat can both use it
+        // we don't store this on the struct because it should only be useful to those 2 tasks
         // (this might change in the future when it comes to reconnecting lost connections)
         let sequence_number = Arc::new(Mutex::new(None));
 
@@ -155,7 +155,7 @@ impl Gateway {
                 .await;
 
         // Send identify packet
-        // Api allows us (and actually tells us) to send hearthbeats while doing this
+        // Api allows us (and actually tells us) to send heartbeat's while doing this
         // but that would make the heartbeat logic very complicated since we cant copy the stream writer
         let data = Message::Text(
             serde_json::to_string(&serde_json::json!({
@@ -174,7 +174,7 @@ impl Gateway {
         );
         stream_writer.send(data).await.unwrap();
 
-        tokio::spawn(Gateway::hearthbeat(
+        tokio::spawn(Gateway::heartbeat(
             stream_writer,
             self.event_reader.as_ref().unwrap().resubscribe(),
             hearth_interval,
@@ -210,8 +210,8 @@ impl Gateway {
         }
     }
 
-    // Sent hearthbeat to discord
-    async fn hearthbeat<W>(
+    // Sent heartbeat to discord
+    async fn heartbeat<W>(
         mut writer: W,
         mut event_reader: broadcast::Receiver<GatewayEventData>,
         interval: u32,
@@ -225,8 +225,8 @@ impl Gateway {
         tokio::time::sleep(Duration::from_millis(first_sleep_amount as u64)).await;
 
         loop {
-            // send hearthbeat event
-            println!("sending hearthbeat");
+            // send heartbeat event
+            println!("sending heartbeat");
             let data = serde_json::json!({
                 "op": 1,
                 "d": sequence_number.lock().unwrap().clone()
@@ -234,7 +234,7 @@ impl Gateway {
             let message = Message::Text(serde_json::to_string(&data).unwrap());
             writer.send(message).await.unwrap();
 
-            // wait for response and timeout if it doesnt come
+            // wait for response and timeout if it doesn't come
             // ... lets assume that one a good day discord wont be slow at responding.
             // and if we are being way to slow discord would ask us for a hearth anyway :D ❤️
             tokio::time::timeout(
@@ -244,11 +244,11 @@ impl Gateway {
             .await
             .expect("did not get response from discord in time!");
 
-            // Send next hearthbeat after interval miliseconds
-            // or as soon as possible when a HearthbeatRequests comes from discord
+            // Send next heartbeat after interval milliseconds
+            // or as soon as possible when a HeartbeatRequests comes from discord
             let sleeper_task = tokio::time::sleep(Duration::from_millis(interval as u64));
             let requests_waiter =
-                wait_for_S!(&mut event_reader, GatewayEventData::HearthbeatRequest => ());
+                wait_for_S!(&mut event_reader, GatewayEventData::HeartbeatRequest => ());
 
             // Wait for one of those tasks to finish, dropping (canceling) the other.
             select! {
@@ -262,7 +262,7 @@ impl Gateway {
     /// 
     /// This will call the predicate on each event gotten,
     /// once the predicate returns a `Some(value)` this function will then return the `value`,
-    /// if the passed event is not the desierd one return [`None`]
+    /// if the passed event is not the desired one return [`None`]
     ///
     /// # Example
     /// ```no_run
@@ -270,7 +270,7 @@ impl Gateway {
     /// # tokio_test::block_on(async move {
     /// let gateway = Gateway::new();
     /// // IMPORTANT: you need to call `Gateway::connect` before using this function
-    /// // For the sake of this example we have chossen to not do that
+    /// // For the sake of this example we have chosen to not do that
     /// let msg = gateway.wait_for(|event| {
     ///     if let GatewayEventData::MessageCreate(msg) = event {
     ///         Some(msg)
@@ -298,7 +298,7 @@ impl Gateway {
     /// The passed in state will be [cloned][Clone] and sent to each callback,
     /// consider using a [Mutex][std::sync::Mutex] to share data between callbacks.
     /// 
-    /// You can also define a struct to hold multiple Mutxes, to make the code more efficent (the less data behind a single lock the better);
+    /// You can also define a struct to hold multiple Mutexes, to make the code more efficient (the less data behind a single lock the better);
     /// 
     /// # Example
     /// ```no_run

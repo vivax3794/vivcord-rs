@@ -10,7 +10,7 @@ use crate::{
 /// Error from the discord api
 #[derive(Deserialize, Clone, Debug)]
 pub struct DiscordErrorData {
-    /// Json Structure describing exectly what was wrong
+    /// Json Structure describing exactly what was wrong
     pub errors: Option<serde_json::Value>,
     /// Generic message of what was wrong, usually not needed
     pub message: String,
@@ -55,7 +55,7 @@ impl ApiClient {
     /// Create new api client instance with the specified oauth token
     /// Takes a discord api oauth token.
     ///
-    /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create our instace.
+    /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create our instance.
     pub fn new(token: &str) -> Self {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
@@ -74,7 +74,7 @@ impl ApiClient {
     }
 
     /// Get the connection url for the discord gateway
-    /// At the time of writting this url is most likely `wss://gateway.discord.gg/`, but this might change.
+    /// At the time of writing this url is most likely `wss://gateway.discord.gg/`, but this might change.
     ///
     /// # Example
     /// ```no_run
