@@ -17,13 +17,13 @@ futures = "0.3"
 tokio = {version = "1.21", features = ["rt", "macros", "sync", "time"]}
 
 serde = {version = "1.0", features = ["derive"]}
-serde_json = {version = "*"}
+serde_json = {version = "1.0"}
 
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tokio-tungstenite = {version = "0.17", features = ["rustls-tls-native-roots"]}
-rustls = "*"
+rustls = "0.20"
 webpki-roots = "0.22"
-httparse = "*"
+httparse = "1.8"
 # http = "*"
 
 rand = "0.8"
