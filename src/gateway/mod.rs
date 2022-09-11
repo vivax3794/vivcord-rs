@@ -5,7 +5,7 @@
 mod events;
 use std::{sync::Arc, time::Duration};
 
-pub use events::GatewayEventData;
+pub use events::EventData;
 
 use futures::{Future, SinkExt, StreamExt};
 use std::sync::Mutex;
@@ -29,11 +29,11 @@ where
 }
 
 /// Wait for specific event from gateway
-/// 
+///
 /// For more control see [`Gateway::wait_for`][crate::Gateway::wait_for]
-/// 
+///
 /// syntax is `wait_for!(gateway, pattern => return)`, you can use the pattern to capture values from the event to return.
-/// 
+///
 /// # Example
 /// ```no_run
 /// # use vivcord::{wait_for, Gateway, GatewayEventData};
@@ -57,7 +57,7 @@ macro_rules! wait_for {
 }
 
 /// Same as [`wait_for!`], but operator on a stream instead.
-/// 
+///
 /// Internal use only
 macro_rules! wait_for_S {
     ($stream: expr, $event: pat => $return_expr: expr) => {
@@ -112,7 +112,7 @@ async fn create_connection(
 
 /// Websocket for getting events from discord gateway.
 pub struct Gateway {
-    event_reader: Option<broadcast::Receiver<GatewayEventData>>,
+    event_reader: Option<broadcast::Receiver<EventData>>,
 }
 
 impl Default for Gateway {
@@ -123,6 +123,7 @@ impl Default for Gateway {
 
 impl Gateway {
     /// Create gateway instance.
+    #[must_use]
     pub fn new() -> Self {
         Self { event_reader: None }
     }
@@ -130,6 +131,9 @@ impl Gateway {
     /// Create new gateway connection using a oauth token. <br>
     /// you can get the gateway url with [`ApiClient::get_gateway_url`](crate::ApiClient::get_gateway_url) <br>
     /// This will spawn the event loop in a separate task (and maybe thread)
+    ///
+    /// # Panics
+    /// If there is an error connecting to the gateway.
     #[allow(unreachable_code)]
     pub async fn connect(&mut self, url: &str, token: &str, intents: &crate::Intents) {
         let (mut stream_writer, stream_reader) = create_connection(url).await;
@@ -137,7 +141,7 @@ impl Gateway {
         // IMPORTANT: Should this be larger/smaller?
         // In theory all events should be processed almost at once
         // as long as the user doesn't block the thread (HEY MATISSE, SOUNDS FAMILIAR?)
-        let (event_writer, event_reader) = broadcast::channel::<events::GatewayEventData>(5);
+        let (event_writer, event_reader) = broadcast::channel::<events::EventData>(5);
         self.event_reader = Some(event_reader);
 
         // create sequence number with Mutex so the event reader and heartbeat can both use it
@@ -151,8 +155,7 @@ impl Gateway {
             sequence_number.clone(), // lets event reader thread update sequence number
         ));
         let hearth_interval =
-            wait_for!(self, GatewayEventData::Hello { heartbeat_interval } => heartbeat_interval)
-                .await;
+            wait_for!(self, EventData::Hello { heartbeat_interval } => heartbeat_interval).await;
 
         // Send identify packet
         // Api allows us (and actually tells us) to send heartbeat's while doing this
@@ -185,7 +188,7 @@ impl Gateway {
     /// Read events from socket forever
     async fn event_loop<S>(
         mut reader: S,
-        event_writer: broadcast::Sender<GatewayEventData>,
+        event_writer: broadcast::Sender<EventData>,
         sequence_number: Arc<Mutex<Option<u32>>>,
     ) -> !
     where
@@ -213,7 +216,7 @@ impl Gateway {
     // Sent heartbeat to discord
     async fn heartbeat<W>(
         mut writer: W,
-        mut event_reader: broadcast::Receiver<GatewayEventData>,
+        mut event_reader: broadcast::Receiver<EventData>,
         interval: u32,
         sequence_number: Arc<Mutex<Option<u32>>>,
     ) -> !
@@ -221,8 +224,13 @@ impl Gateway {
         W: SinkExt<Message, Error = Error> + Unpin,
     {
         // wait before sending intervals
-        let first_sleep_amount = (interval as f64) * rand::random::<f64>();
-        tokio::time::sleep(Duration::from_millis(first_sleep_amount as u64)).await;
+        let first_sleep_amount = f64::from(interval) * rand::random::<f64>();
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        tokio::time::sleep(Duration::from_millis(
+            first_sleep_amount.floor().abs() as u64
+        ))
+        .await;
 
         loop {
             // send heartbeat event
@@ -238,17 +246,16 @@ impl Gateway {
             // ... lets assume that one a good day discord wont be slow at responding.
             // and if we are being way to slow discord would ask us for a hearth anyway :D ❤️
             tokio::time::timeout(
-                Duration::from_millis(interval as u64),
-                wait_for_S!(&mut event_reader, GatewayEventData::HearthBeatAck => ()),
+                Duration::from_millis(interval.into()),
+                wait_for_S!(&mut event_reader, EventData::HearthBeatAck => ()),
             )
             .await
             .expect("did not get response from discord in time!");
 
             // Send next heartbeat after interval milliseconds
             // or as soon as possible when a HeartbeatRequests comes from discord
-            let sleeper_task = tokio::time::sleep(Duration::from_millis(interval as u64));
-            let requests_waiter =
-                wait_for_S!(&mut event_reader, GatewayEventData::HeartbeatRequest => ());
+            let sleeper_task = tokio::time::sleep(Duration::from_millis(interval.into()));
+            let requests_waiter = wait_for_S!(&mut event_reader, EventData::HeartbeatRequest => ());
 
             // Wait for one of those tasks to finish, dropping (canceling) the other.
             select! {
@@ -259,7 +266,7 @@ impl Gateway {
     }
 
     /// Wait for event using predicate.
-    /// 
+    ///
     /// This will call the predicate on each event gotten,
     /// once the predicate returns a `Some(value)` this function will then return the `value`,
     /// if the passed event is not the desired one return [`None`]
@@ -277,12 +284,12 @@ impl Gateway {
     ///     } else {
     ///         None
     ///     }
-    /// }).await; 
+    /// }).await;
     /// # });
     /// ```
     pub async fn wait_for<T, F>(&self, predicate: F) -> T
     where
-        F: FnMut(GatewayEventData) -> Option<T>,
+        F: FnMut(EventData) -> Option<T>,
     {
         let mut reader = self
             .event_reader
@@ -294,12 +301,15 @@ impl Gateway {
 
     /// Keep calling `callback` with events gotten forever,
     /// This function never returns.
-    /// 
+    ///
     /// The passed in state will be [cloned][Clone] and sent to each callback,
     /// consider using a [Mutex][std::sync::Mutex] to share data between callbacks.
-    /// 
+    ///
     /// You can also define a struct to hold multiple Mutexes, to make the code more efficient (the less data behind a single lock the better);
-    /// 
+    ///
+    /// # Panics
+    /// When the event loop has not been started yet, or if there is an error with reading the events from the event loop
+    ///
     /// # Example
     /// ```no_run
     /// # use vivcord::Gateway;
@@ -314,9 +324,9 @@ impl Gateway {
     /// ```
     pub async fn on<F, A, S>(&self, state: S, mut callback: F) -> !
     where
-        F: FnMut(GatewayEventData, S) -> A,
+        F: FnMut(EventData, S) -> A,
         A: Future<Output = ()> + Send + 'static,
-        S: Clone
+        S: Clone,
     {
         let mut reader = self
             .event_reader

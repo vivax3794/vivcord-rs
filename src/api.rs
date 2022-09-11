@@ -20,23 +20,23 @@ pub struct DiscordErrorData {
 
 /// Holds possible errors from the api
 #[derive(Debug)]
-pub enum ApiErr {
+pub enum Error {
     /// Generic http error
-    ReqwstErr(reqwest::Error),
+    ReqwestErr(reqwest::Error),
     /// Error from discord api
     DiscordErr(DiscordErrorData),
 }
 
-impl From<reqwest::Error> for ApiErr {
+impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
-        Self::ReqwstErr(err)
+        Self::ReqwestErr(err)
     }
 }
 
 /// Parse a json that might be `T` or might be a discord error
-fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<T, ApiErr> {
+fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<T, Error> {
     if data.get("code").is_some() {
-        Err(ApiErr::DiscordErr(serde_json::from_value(data).unwrap()))
+        Err(Error::DiscordErr(serde_json::from_value(data).unwrap()))
     } else {
         Ok(serde_json::from_value(data).unwrap())
     }
@@ -46,16 +46,20 @@ fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<
 const BASE_URL: &str = "https://discord.com/api/v10/";
 
 /// Api client making requests to discord.
-pub struct ApiClient {
+pub struct Api {
     /// Internal http client used to make requests
     http_client: reqwest::Client,
 }
 
-impl ApiClient {
+impl Api {
     /// Create new api client instance with the specified oauth token
     /// Takes a discord api oauth token.
     ///
     /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create our instance.
+    /// 
+    /// # Panics
+    /// If a tls background can not be found
+    #[must_use]
     pub fn new(token: &str) -> Self {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
@@ -76,6 +80,10 @@ impl ApiClient {
     /// Get the connection url for the discord gateway
     /// At the time of writing this url is most likely `wss://gateway.discord.gg/`, but this might change.
     ///
+    /// # Errors
+    /// Can be due to a general connection error like not authorized,
+    /// Can also be caused by invalid response from the discord api.
+    /// 
     /// # Example
     /// ```no_run
     /// # use vivcord::ApiClient;
@@ -105,6 +113,10 @@ impl ApiClient {
 
     /// Send message to specific channel
     /// 
+    /// # Errors
+    /// Can be due to connection error to discord, invalid json response. 
+    /// Or other general error with the input data, such as invalid ids.
+    /// 
     /// # Example
     /// ```no_run
     /// # use vivcord::{ApiClient, CreateMessageParams, api::ApiErr};
@@ -118,7 +130,7 @@ impl ApiClient {
         &self,
         channel_id: I,
         msg: CreateMessageParams,
-    ) -> Result<Message, ApiErr> {
+    ) -> Result<Message, Error> {
         let id: u64 = channel_id.into().0;
 
         parse_possible_error(
