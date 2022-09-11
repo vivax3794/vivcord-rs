@@ -32,7 +32,7 @@ pub enum EventData {
 
     // TODO: More fields
     /// Sent when the client has successfully connected.
-    Ready,
+    Ready {},
 
     /// Send when somebody sends a message
     /// 
@@ -70,7 +70,7 @@ pub struct GatewayEvent {
 impl From<RawEventData> for GatewayEvent {
     fn from(raw_event: RawEventData) -> Self {
         let event_name = if raw_event.opcode == 0 { raw_event.event_name.expect("Missing type field") } else { raw_event.opcode.to_string() };
-        
+
         let data: EventData = serde_json::from_value(serde_json::json!({
             "event_name": event_name,
             "data": raw_event.data

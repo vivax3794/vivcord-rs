@@ -1,38 +1,35 @@
-// NOTE: THIS FILE IS FOR TESTING ONLY
-// It does not show how the finished library will be used
-
-use std::sync::Arc;
-
 const TOKEN: &str = include_str!("../token.secret");
+
+use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() {
-    let api = vivcord::Api::new(TOKEN);
-    let url = api.get_gateway_url().await.unwrap();
+    let count = Arc::new(Mutex::new(0));
+    let client = vivcord::Client::new(TOKEN.to_owned(), count);
 
-    let intents = vivcord::Intents::GUILD_MESSAGES | vivcord::Intents::MESSAGE_CONTENT;
+    let intents = vivcord::Intents::MESSAGE_CONTENT | vivcord::Intents::GUILD_MESSAGES;
+    client
+        .run(&intents, |event, client| async move {
+            if let vivcord::EventData::MessageCreate(msg) = event {
+                if msg.content == "test" {
+                    let new_msg = {
+                        let mut count = client.state.lock().unwrap();
+                        *count += 1;
 
-    let mut gateway = vivcord::Gateway::new();
-    gateway.connect(&url, TOKEN, &intents).await;
-    gateway
-        .on(
-            Arc::new(tokio::sync::Mutex::new(api)),
-            |event, api| async move {
-                if let vivcord::EventData::MessageCreate(msg) = event {
-                    if msg.content == "test" {
-                        api.lock()
-                            .await
-                            .create_message(
-                                msg.channel_id,
-                                vivcord::CreateMessageParams {
-                                    content: Some("hello there!".to_owned()),
-                                },
-                            )
-                            .await
-                            .unwrap();
-                    }
+                        vivcord::CreateMessageParams {
+                            content: Some(count.to_string()),
+                        }
+                    };
+
+                    client
+                        .api
+                        .read()
+                        .await
+                        .create_message(msg.channel_id, new_msg)
+                        .await
+                        .unwrap();
                 }
-            },
-        )
+            }
+        })
         .await;
 }

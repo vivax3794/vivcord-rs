@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 /// Discord ids actually contain a timestamp of creation.
 #[derive(Deserialize, Serialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 // Discord api gives the number id as a string
-#[serde(from = "&str")]
+#[serde(from = "String")]
 pub struct Snowflake(pub u64);
 // TODO: Add support for timestamp
 
 
-impl From<&str> for Snowflake {
-    fn from(raw: &str) -> Self {
+impl From<String> for Snowflake {
+    fn from(raw: String) -> Self {
        Self(raw.parse().unwrap()) 
     }
 }
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_from_string() {
-        let snow = Snowflake::from("123");
+        let snow = Snowflake::from("123".to_owned());
 
         assert_eq!(snow.0, 123);
     }

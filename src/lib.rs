@@ -8,9 +8,12 @@
 #[macro_use]
 mod macros;
 
+pub mod client;
 pub mod api;
 pub mod gateway;
 pub mod datatypes;
+
+pub use client::Client;
 
 pub use api::Api;
 
