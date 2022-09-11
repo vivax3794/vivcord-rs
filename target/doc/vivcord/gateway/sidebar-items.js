@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["GatewayEventData","Discord Events, returned from [`Gateway`][crate::Gateway]"]],"struct":[["Gateway","Websocket for getting events from discord gateway."]]});

@@ -1,5 +1,7 @@
 //! Connect and recive events from discord
 
+// TODO: Reconnect on disconnect
+
 mod events;
 use std::{sync::Arc, time::Duration};
 
@@ -11,6 +13,7 @@ use tokio::select;
 use tokio::sync::broadcast;
 use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Error, Message};
 
+/// Same as [`Gateway::wait_for`] but operates on a stream.
 async fn wait_for<St, F, Rt>(stream: &mut broadcast::Receiver<St>, mut predicate: F) -> Rt
 where
     St: Clone,
@@ -25,6 +28,21 @@ where
     }
 }
 
+/// Wait for specific event from gateway
+/// 
+/// For more controll see [`Gateway::wait_for`][crate::Gateway::wait_for]
+/// 
+/// syntax is `wait_for!(gateway, pattern => return)`, you can use the pattern to capture values from the event to return.
+/// 
+/// # Example
+/// ```no_run
+/// # use vivcord::{wait_for, Gateway, GatewayEventData};
+/// # tokio_test::block_on(async move {
+/// let gateway = Gateway::new();
+/// // IMPORTANT: normally you would have called `Gateway::connect` by this point!!!!!
+/// let msg = wait_for!(gateway, GatewayEventData::MessageCreate(msg) => msg).await;
+/// # });
+/// ```
 #[macro_export]
 macro_rules! wait_for {
     ($gateway: expr, $event: pat => $return_expr: expr) => {
@@ -38,6 +56,9 @@ macro_rules! wait_for {
     };
 }
 
+/// Same as [`wait_for!`], but operator on a stream instead.
+/// 
+/// Internal use only
 macro_rules! wait_for_S {
     ($stream: expr, $event: pat => $return_expr: expr) => {
         wait_for($stream, |event| {
@@ -50,6 +71,7 @@ macro_rules! wait_for_S {
     };
 }
 
+/// Create the tls confic for the gateway connection
 fn create_tls() -> tokio_tungstenite::Connector {
     let mut root_store = rustls::RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
@@ -68,6 +90,7 @@ fn create_tls() -> tokio_tungstenite::Connector {
     tokio_tungstenite::Connector::Rustls(Arc::new(tls))
 }
 
+/// Create the websocket connection using the given url.
 async fn create_connection(
     url: &str,
 ) -> (
@@ -99,12 +122,13 @@ impl Default for Gateway {
 }
 
 impl Gateway {
+    /// Create gateway instance.
     pub fn new() -> Self {
         Self { event_reader: None }
     }
 
-    /// Create new gateway connection using a oauth token
-    /// you can get the gateway url with [ApiClient::get_gateway_url](crate::ApiClient::get_gateway_url)
+    /// Create new gateway connection using a oauth token. <br>
+    /// you can get the gateway url with [`ApiClient::get_gateway_url`](crate::ApiClient::get_gateway_url) <br>
     /// This will spawn the event loop in a seperate task (and maybe thread)
     #[allow(unreachable_code)]
     pub async fn connect(&mut self, url: &str, token: &str, intents: &crate::Intents) {
@@ -116,6 +140,9 @@ impl Gateway {
         let (event_writer, event_reader) = broadcast::channel::<events::GatewayEventData>(5);
         self.event_reader = Some(event_reader);
 
+        // create sequence number with Mutex so the event reader and hearthbeat can both use it
+        // we dont store this on the struct because it should only be usefull to those 2 tasks
+        // (this might change in the future when it comes to reconnecting lost connections)
         let sequence_number = Arc::new(Mutex::new(None));
 
         tokio::spawn(Gateway::event_loop(
@@ -183,6 +210,7 @@ impl Gateway {
         }
     }
 
+    // Sent hearthbeat to discord
     async fn hearthbeat<W>(
         mut writer: W,
         mut event_reader: broadcast::Receiver<GatewayEventData>,
@@ -207,9 +235,8 @@ impl Gateway {
             writer.send(message).await.unwrap();
 
             // wait for response and timeout if it doesnt come
-            // TODO: make reconnection logic.... somehow?
             // ... lets assume that one a good day discord wont be slow at responding.
-            // and if we are being way to slow discord would ask us for a hearth!
+            // and if we are being way to slow discord would ask us for a hearth anyway :D ❤️
             tokio::time::timeout(
                 Duration::from_millis(interval as u64),
                 wait_for_S!(&mut event_reader, GatewayEventData::HearthBeatAck => ()),
@@ -217,11 +244,13 @@ impl Gateway {
             .await
             .expect("did not get response from discord in time!");
 
-            // sleep for interval, or until discord requests a heartbeat
+            // Send next hearthbeat after interval miliseconds
+            // or as soon as possible when a HearthbeatRequests comes from discord
             let sleeper_task = tokio::time::sleep(Duration::from_millis(interval as u64));
             let requests_waiter =
                 wait_for_S!(&mut event_reader, GatewayEventData::HearthbeatRequest => ());
 
+            // Wait for one of those tasks to finish, dropping (canceling) the other.
             select! {
                 _ = sleeper_task => (),
                 _ = requests_waiter => ()
@@ -229,6 +258,28 @@ impl Gateway {
         }
     }
 
+    /// Wait for event using predicate.
+    /// 
+    /// This will call the predicate on each event gotten,
+    /// once the predicate returns a `Some(value)` this function will then return the `value`,
+    /// if the passed event is not the desierd one return [`None`]
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use vivcord::{Gateway, GatewayEventData};
+    /// # tokio_test::block_on(async move {
+    /// let gateway = Gateway::new();
+    /// // IMPORTANT: you need to call `Gateway::connect` before using this function
+    /// // For the sake of this example we have chossen to not do that
+    /// let msg = gateway.wait_for(|event| {
+    ///     if let GatewayEventData::MessageCreate(msg) = event {
+    ///         Some(msg)
+    ///     } else {
+    ///         None
+    ///     }
+    /// }).await; 
+    /// # });
+    /// ```
     pub async fn wait_for<T, F>(&self, predicate: F) -> T
     where
         F: FnMut(GatewayEventData) -> Option<T>,
@@ -241,6 +292,26 @@ impl Gateway {
         wait_for(&mut reader, predicate).await
     }
 
+    /// Keep calling `callback` with events gotten forever,
+    /// This function never returns.
+    /// 
+    /// The passed in state will be [cloned][Clone] and sent to each callback,
+    /// consider using a [Mutex][std::sync::Mutex] to share data between callbacks.
+    /// 
+    /// You can also define a struct to hold multiple Mutxes, to make the code more efficent (the less data behind a single lock the better);
+    /// 
+    /// # Example
+    /// ```no_run
+    /// # use vivcord::Gateway;
+    /// # tokio_test::block_on(async move {
+    /// let gateway = Gateway::new();
+    /// // As usual, you need to call `Gateway::connect` before this
+    /// gateway.on(132, |event, state| async move {
+    ///     assert_eq!(state, 123);
+    ///     println!("{event:?}");
+    /// });
+    /// # })
+    /// ```
     pub async fn on<F, A, S>(&self, state: S, mut callback: F) -> !
     where
         F: FnMut(GatewayEventData, S) -> A,

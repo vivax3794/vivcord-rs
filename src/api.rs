@@ -7,16 +7,23 @@ use crate::{
     CreateMessageParams,
 };
 
+/// Error from the discord api
 #[derive(Deserialize, Clone, Debug)]
 pub struct DiscordErrorData {
+    /// Json Structure describing exectly what was wrong
     pub errors: Option<serde_json::Value>,
+    /// Generic message of what was wrong, usually not needed
     pub message: String,
+    /// Discord [error code](https://discord.com/developers/docs/dispatch/error-codes#error-codes)
     pub code: u16,
 }
 
+/// Holds possible errors from the api
 #[derive(Debug)]
 pub enum ApiErr {
+    /// Generic http error
     ReqwstErr(reqwest::Error),
+    /// Error from discord api
     DiscordErr(DiscordErrorData),
 }
 
@@ -26,6 +33,7 @@ impl From<reqwest::Error> for ApiErr {
     }
 }
 
+/// Parse a json that might be `T` or might be a discord error
 fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<T, ApiErr> {
     if data.get("code").is_some() {
         Err(ApiErr::DiscordErr(serde_json::from_value(data).unwrap()))
@@ -47,7 +55,7 @@ impl ApiClient {
     /// Create new api client instance with the specified oauth token
     /// Takes a discord api oauth token.
     ///
-    /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create out instace.
+    /// Even if not *all* endpoint technically require a oauth token, 99% does, so we require it to create our instace.
     pub fn new(token: &str) -> Self {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
@@ -74,7 +82,7 @@ impl ApiClient {
     /// # tokio_test::block_on(async {
     /// let client = ApiClient::new("");
     /// let url = client.get_gateway_url().await?;
-    ///     # Ok::<(), reqwest::Error>(())
+    /// # Ok::<(), reqwest::Error>(())
     /// # });
     /// ```
 
@@ -95,6 +103,17 @@ impl ApiClient {
         Ok(result.url)
     }
 
+    /// Send message to specific channel
+    /// 
+    /// # Example
+    /// ```no_run
+    /// # use vivcord::{ApiClient, CreateMessageParams, api::ApiErr};
+    /// # tokio_test::block_on(async move {
+    /// let api = ApiClient::new("TOKEN");
+    /// api.create_message(12345, CreateMessageParams {content: Some("hello".to_owned())}).await?;
+    /// # Ok::<(), ApiErr>(())
+    /// # });
+    /// ```
     pub async fn create_message<I: Into<Snowflake>>(
         &self,
         channel_id: I,

@@ -3,25 +3,40 @@
 use serde::Deserialize;
 
 
-/// Stores all possible gateway event types.
+/// Discord Events, returned from [`Gateway`][crate::Gateway]
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "event_name", content = "data")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]
 pub enum GatewayEventData {
+    /// Sent when connecting to websocket
+    /// 
+    /// This is usually sent before even callbacks are registerd
     #[serde(rename = "10")]
     Hello {
         heartbeat_interval: u32,
     },
 
+    /// Sent to confirm we are still connected to websocket
+    /// 
+    /// This is handled by the internal event handler
     #[serde(rename = "11")]
     HearthBeatAck,
 
+    /// Discord us wants us to verify we are still connected
+    /// 
+    /// This is handled by the internal event handler
     #[serde(rename = "1")]
     HearthbeatRequest,
 
+    // TODO: More fields
+    /// Sent when the client has sucessfully connected.
     Ready {},
 
+    /// Send when somebody sends a message
+    /// 
+    /// # Important
+    /// This is also sent when the bot creates a message, make sure to avoid infinte loops!
     MessageCreate(crate::datatypes::Message),
 }
 
@@ -45,6 +60,10 @@ pub struct GatewayEvent {
     pub data: GatewayEventData,
     pub sequence_number: Option<u32>
 }
+
+
+// To make event parsing easier we make a custom pre-processing step to combine the opcode and event name into one field
+// this lets us use the same enum for all event types!
 
 
 impl From<RawEventData> for GatewayEvent {

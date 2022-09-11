@@ -1,3 +1,6 @@
+// NOTE: THIS FILE IS FOR TESTING ONLY
+// It does not show how the finished library will be used
+
 use std::sync::Arc;
 
 const TOKEN: &str = include_str!("../token.secret");

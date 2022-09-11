@@ -1,6 +1,20 @@
+//! Types used by discord
+
 use bitflags::bitflags;
 
 bitflags! {
+    /// Intents tells discord what events you want to be passed. <br>
+    /// You can use bitwise operations to combine flags. <br>
+    /// These should be passed to [`Gateway::connect`][crate::Gateway::connect]
+    /// 
+    /// Detailed describtion of what each flag does can be seen in the [discord docs](https://discord.com/developers/docs/topics/gateway#list-of-intents)
+    /// 
+    /// # Example
+    /// ```
+    /// # use vivcord::Intents;
+    /// // You want to get evetns about messages in guilds and their content.
+    /// let intents = Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT;
+    /// ```
     pub struct Intents: u32 {
         const GUILDS = 1 << 0;
         const GUILD_MEMBERS = 1 << 1;
