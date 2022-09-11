@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ApiErr","Holds possible errors from the api"]],"struct":[["ApiClient","Api client making requests to discord."],["DiscordErrorData","Error from the discord api"]]});
