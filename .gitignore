@@ -3,9 +3,4 @@
 token.secret
 .vscode
 
-# include docs
-target/*
-!target/doc
-
-target/doc/*
-!target/doc/vivcord
+target/
