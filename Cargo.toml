@@ -5,7 +5,7 @@ description = "WIP discord wrapper by vivax"
 license = "MIT"
 readme = "README.md"
 
-respository = "https://github.com/vivax3794/vivcord-rs"
+repository = "https://github.com/vivax3794/vivcord-rs"
 
 version = "0.1.0"
 edition = "2021"
