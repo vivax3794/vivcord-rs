@@ -14,6 +14,7 @@ pub enum EventData {
     /// This is usually sent before even callbacks are registered
     #[serde(rename = "10")]
     Hello {
+        /// Time to sleep between sending each heartbeat
         heartbeat_interval: u32,
     },
 
@@ -31,7 +32,7 @@ pub enum EventData {
 
     // TODO: More fields
     /// Sent when the client has successfully connected.
-    Ready {},
+    Ready,
 
     /// Send when somebody sends a message
     /// 

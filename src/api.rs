@@ -46,6 +46,7 @@ fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<
 const BASE_URL: &str = "https://discord.com/api/v10/";
 
 /// Api client making requests to discord.
+#[derive(Debug)]
 pub struct Api {
     /// Internal http client used to make requests
     http_client: reqwest::Client,
@@ -86,9 +87,9 @@ impl Api {
     /// 
     /// # Example
     /// ```no_run
-    /// # use vivcord::ApiClient;
+    /// # use vivcord::Api;
     /// # tokio_test::block_on(async {
-    /// let client = ApiClient::new("");
+    /// let client = Api::new("");
     /// let url = client.get_gateway_url().await?;
     /// # Ok::<(), reqwest::Error>(())
     /// # });
@@ -119,11 +120,11 @@ impl Api {
     /// 
     /// # Example
     /// ```no_run
-    /// # use vivcord::{ApiClient, CreateMessageParams, api::ApiErr};
+    /// # use vivcord::{Api, CreateMessageParams, api::Error};
     /// # tokio_test::block_on(async move {
-    /// let api = ApiClient::new("TOKEN");
+    /// let api = Api::new("TOKEN");
     /// api.create_message(12345, CreateMessageParams {content: Some("hello".to_owned())}).await?;
-    /// # Ok::<(), ApiErr>(())
+    /// # Ok::<(), Error>(())
     /// # });
     /// ```
     pub async fn create_message<I: Into<Snowflake>>(

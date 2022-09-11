@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 use super::Snowflake;
-use crate::to_snowflake_simple;
 
 /// Discord Message
 /// 
 /// # Important
 /// You should never need to construct this struct yourself,
-/// This should be created by `vivcord`, usually in [`MessageCreate`][crate::GatewayEventData] events.
+/// This should be created by `vivcord`, usually in [`MessageCreate`][crate::EventData] events.
 #[derive(Deserialize, Clone)]
 pub struct Message {
     /// Message id 
@@ -20,6 +19,7 @@ pub struct Message {
 }
 
 to_snowflake_simple!(Message);
+comp_by_field!(Message, self.id);
 
 impl std::fmt::Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -33,9 +33,8 @@ impl std::fmt::Debug for Message {
 }
 
 /// Fields that can be passed to the discord api to create message
-/// This could be the [`create_message`][crate::ApiClient::create_message] endpoint, or `TODO: MORE ENDPOINTS`
-#[derive(Serialize, Default)]
-// #[non_exhaustive]
+/// This could be the [`create_message`][crate::Api::create_message] endpoint, or `TODO: MORE ENDPOINTS`
+#[derive(Serialize, Default, Debug)]
 pub struct CreateMessageParams {
     /// Content to send
     pub content: Option<String>

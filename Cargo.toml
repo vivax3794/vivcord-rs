@@ -24,7 +24,6 @@ tokio-tungstenite = {version = "0.17", features = ["rustls-tls-native-roots"]}
 rustls = "0.20"
 webpki-roots = "0.22"
 httparse = "1.8"
-# http = "*"
 
 rand = "0.8"
 bitflags = "1.3"

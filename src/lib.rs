@@ -1,9 +1,16 @@
+#![doc = include_str!("../README.md")]
+
 #![warn(clippy::pedantic)]
+#![warn(missing_docs)]
+#![warn(missing_copy_implementations)]
+#![warn(missing_debug_implementations)]
+
+#[macro_use]
+mod macros;
 
 pub mod api;
 pub mod gateway;
 pub mod datatypes;
-// pub mod client;
 
 pub use api::Api;
 

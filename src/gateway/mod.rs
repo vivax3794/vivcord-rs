@@ -36,11 +36,11 @@ where
 ///
 /// # Example
 /// ```no_run
-/// # use vivcord::{wait_for, Gateway, GatewayEventData};
+/// # use vivcord::{wait_for, Gateway, EventData};
 /// # tokio_test::block_on(async move {
 /// let gateway = Gateway::new();
 /// // IMPORTANT: normally you would have called `Gateway::connect` by this point!!!!!
-/// let msg = wait_for!(gateway, GatewayEventData::MessageCreate(msg) => msg).await;
+/// let msg = wait_for!(gateway, EventData::MessageCreate(msg) => msg).await;
 /// # });
 /// ```
 #[macro_export]
@@ -111,6 +111,7 @@ async fn create_connection(
 }
 
 /// Websocket for getting events from discord gateway.
+#[derive(Debug)]
 pub struct Gateway {
     event_reader: Option<broadcast::Receiver<EventData>>,
 }
@@ -129,7 +130,7 @@ impl Gateway {
     }
 
     /// Create new gateway connection using a oauth token. <br>
-    /// you can get the gateway url with [`ApiClient::get_gateway_url`](crate::ApiClient::get_gateway_url) <br>
+    /// you can get the gateway url with [`ApiClient::get_gateway_url`](crate::Api::get_gateway_url) <br>
     /// This will spawn the event loop in a separate task (and maybe thread)
     ///
     /// # Panics
@@ -273,13 +274,13 @@ impl Gateway {
     ///
     /// # Example
     /// ```no_run
-    /// # use vivcord::{Gateway, GatewayEventData};
+    /// # use vivcord::{Gateway, EventData};
     /// # tokio_test::block_on(async move {
     /// let gateway = Gateway::new();
     /// // IMPORTANT: you need to call `Gateway::connect` before using this function
     /// // For the sake of this example we have chosen to not do that
     /// let msg = gateway.wait_for(|event| {
-    ///     if let GatewayEventData::MessageCreate(msg) = event {
+    ///     if let EventData::MessageCreate(msg) = event {
     ///         Some(msg)
     ///     } else {
     ///         None

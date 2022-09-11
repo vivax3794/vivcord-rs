@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Holds a discord id
 /// 
 /// Discord ids actually contain a timestamp of creation.
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 // Discord api gives the number id as a string
 #[serde(from = "&str")]
 pub struct Snowflake(pub u64);
@@ -28,34 +28,6 @@ impl From<Snowflake> for u64 {
     }
 }
 
-/// Implement `From<...>` for [`Snowflake`]
-/// This should be used on structs where there is a `id` field
-/// 
-/// # Important
-/// This macro is used internally, but must be exposed because rust :P
-/// You very likely wont need it
-/// 
-/// # Example
-/// ```
-/// # use vivcord::{to_snowflake_simple, datatypes::Snowflake};
-/// struct SomeData {
-///     id: Snowflake
-/// }
-/// to_snowflake_simple!(SomeData);
-/// 
-/// let data = SomeData {id: Snowflake(123)};
-/// assert_eq!(Snowflake::from(data).0, 123);
-/// ```
-#[macro_export]
-macro_rules! to_snowflake_simple {
-    ($st: ty) => {
-        impl From<$st> for $crate::datatypes::Snowflake {
-            fn from(other: $st) -> Self {
-                other.id
-            }
-        }
-    };
-}
 
 #[cfg(test)]
 mod tests {
