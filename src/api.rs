@@ -1,6 +1,38 @@
 //! Code for interacting with the discord REST api
 
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
+
+use crate::{
+    datatypes::{Message, Snowflake},
+    CreateMessageParams,
+};
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct DiscordErrorData {
+    pub errors: Option<serde_json::Value>,
+    pub message: String,
+    pub code: u16,
+}
+
+#[derive(Debug)]
+pub enum ApiErr {
+    ReqwstErr(reqwest::Error),
+    DiscordErr(DiscordErrorData),
+}
+
+impl From<reqwest::Error> for ApiErr {
+    fn from(err: reqwest::Error) -> Self {
+        Self::ReqwstErr(err)
+    }
+}
+
+fn parse_possible_error<T: DeserializeOwned>(data: serde_json::Value) -> Result<T, ApiErr> {
+    if data.get("code").is_some() {
+        Err(ApiErr::DiscordErr(serde_json::from_value(data).unwrap()))
+    } else {
+        Ok(serde_json::from_value(data).unwrap())
+    }
+}
 
 /// Base url of discord api requests
 const BASE_URL: &str = "https://discord.com/api/v10/";
@@ -20,7 +52,7 @@ impl ApiClient {
         let mut headers = reqwest::header::HeaderMap::with_capacity(1);
         headers.insert(
             "Authorization",
-            reqwest::header::HeaderValue::from_str(token).expect("Invalid Token"),
+            reqwest::header::HeaderValue::from_str(&format!("Bot {token}")).expect("Invalid Token"),
         );
 
         let client = reqwest::Client::builder()
@@ -61,5 +93,23 @@ impl ApiClient {
             .await?;
 
         Ok(result.url)
+    }
+
+    pub async fn create_message<I: Into<Snowflake>>(
+        &self,
+        channel_id: I,
+        msg: CreateMessageParams,
+    ) -> Result<Message, ApiErr> {
+        let id: u64 = channel_id.into().0;
+
+        parse_possible_error(
+            self.http_client
+                .post(format!("{BASE_URL}/channels/{id}/messages"))
+                .json(&msg)
+                .send()
+                .await?
+                .json()
+                .await?,
+        )
     }
 }

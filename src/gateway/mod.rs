@@ -107,7 +107,7 @@ impl Gateway {
     /// you can get the gateway url with [ApiClient::get_gateway_url](crate::ApiClient::get_gateway_url)
     /// This will spawn the event loop in a seperate task (and maybe thread)
     #[allow(unreachable_code)]
-    pub async fn connect(&mut self, url: &str, token: &str) {
+    pub async fn connect(&mut self, url: &str, token: &str, intents: &crate::Intents) {
         let (mut stream_writer, stream_reader) = create_connection(url).await;
 
         // IMPORTANT: Should this be larger/smaller?
@@ -135,7 +135,7 @@ impl Gateway {
                 "op": 2,
                 "d": {
                     "token": token,
-                    "intents": 0, // TODO: support gateway intents
+                    "intents": intents.bits(),
                     "properties": {
                         "os": std::env::consts::OS,
                         "browser": "vivcord-rs",
@@ -241,10 +241,11 @@ impl Gateway {
         wait_for(&mut reader, predicate).await
     }
 
-    pub async fn on<F, A>(&self, mut callback: F) -> !
+    pub async fn on<F, A, S>(&self, state: S, mut callback: F) -> !
     where
-        F: FnMut(GatewayEventData) -> A,
+        F: FnMut(GatewayEventData, S) -> A,
         A: Future<Output = ()> + Send + 'static,
+        S: Clone
     {
         let mut reader = self
             .event_reader
@@ -253,7 +254,7 @@ impl Gateway {
             .resubscribe();
         loop {
             let event = reader.recv().await.unwrap();
-            tokio::spawn(callback(event));
+            tokio::spawn(callback(event, state.clone()));
         }
     }
 }

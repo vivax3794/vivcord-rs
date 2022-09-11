@@ -21,6 +21,8 @@ pub enum GatewayEventData {
     HearthbeatRequest,
 
     Ready {},
+
+    MessageCreate(crate::datatypes::Message),
 }
 
 /// Raw data from discord api, used to convert into GatewayEvent
